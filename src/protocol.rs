@@ -23,17 +23,74 @@ impl<'de> Deserialize<'de> for NumericID {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "msg")]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum Message {
+    Connect {
+        version: String,
+        support: Vec<String>,
+        #[serde(skip_serializing_if="Option::is_none")]
+        session: Option<String>,
+    },
+    Connected {
+        session: String,
+    },
+    Failed {
+        version: String,
+    },
+
     Ping,
     Pong,
-    Connect { version: String, support: Vec<String> },
-    Method { id: NumericID, method: String, params: Vec<Value> },
-    Updated { methods: Vec<NumericID> },
+
+    Method { 
+        id: NumericID, 
+        method: String, 
+        params: Vec<Value>
+    },
+    Updated { 
+        methods: Vec<NumericID> 
+    },
     Result(MethodResponse),
-    Sub { id: String, name: String, params: Vec<Value> },
-    Unsub { id: String },
-    Nosub { id: String },
+    Sub { 
+        id: String, name: String, params: Vec<Value> 
+    },
+    Unsub { 
+        id: String 
+    },
+    Nosub { 
+        id: String, 
+        #[serde(skip_serializing_if="Option::is_none")]
+        error: Option<Value>
+    },
+    Added {
+        collection: String,
+        id: String,
+        fields: Option<Value>,
+    },
+    Changed {
+        collection: String,
+        id: String,
+        #[serde(skip_serializing_if="Option::is_none")]
+        fields: Option<Value>,
+        #[serde(skip_serializing_if="Option::is_none")]
+        cleared: Option<Vec<String>>,
+    },
+    Removed {
+        collection: String,
+        id: String,
+    },
+    Ready {
+        subs: Vec<String>,
+    },
+    AddedBefore {
+        collection: String,
+        id: String,
+        #[serde(skip_serializing_if="Option::is_none")]
+        fields: Option<Value>,
+        before: Option<String>,
+    },
+    MovedBefore {
+        before: Option<String>,
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
