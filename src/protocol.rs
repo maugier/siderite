@@ -63,12 +63,12 @@ pub enum Message {
     },
     Added {
         collection: String,
-        id: NumericID,
+        id: String,
         fields: Option<Value>,
     },
     Changed {
         collection: String,
-        id: NumericID,
+        id: String,
         #[serde(skip_serializing_if="Option::is_none")]
         fields: Option<Value>,
         #[serde(skip_serializing_if="Option::is_none")]
@@ -76,7 +76,7 @@ pub enum Message {
     },
     Removed {
         collection: String,
-        id: NumericID,
+        id: String,
     },
     Ready {
         subs: Vec<String>,
