@@ -17,6 +17,7 @@ struct Method {
 
 type MethodResult = std::result::Result<Value,Value>;
 
+#[derive(Debug)]
 pub struct Connection {
     stream: mpsc::Receiver<Message>,
     rpc: mpsc::Sender<Method>,
