@@ -51,24 +51,24 @@ pub enum Message {
     },
     Result(MethodResponse),
     Sub { 
-        id: String, name: String, params: Vec<Value> 
+        id: NumericID, name: String, params: Vec<Value> 
     },
     Unsub { 
-        id: String 
+        id: NumericID 
     },
     Nosub { 
-        id: String, 
+        id: NumericID, 
         #[serde(skip_serializing_if="Option::is_none")]
         error: Option<Value>
     },
     Added {
         collection: String,
-        id: String,
+        id: NumericID,
         fields: Option<Value>,
     },
     Changed {
         collection: String,
-        id: String,
+        id: NumericID,
         #[serde(skip_serializing_if="Option::is_none")]
         fields: Option<Value>,
         #[serde(skip_serializing_if="Option::is_none")]
@@ -76,7 +76,7 @@ pub enum Message {
     },
     Removed {
         collection: String,
-        id: String,
+        id: NumericID,
     },
     Ready {
         subs: Vec<String>,

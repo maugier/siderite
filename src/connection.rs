@@ -1,18 +1,23 @@
 use anyhow::{Error, Result, anyhow};
 use serde_json::{self, Value};
-use futures::{future::ready, select, sink::SinkExt, stream::StreamExt};
+use futures::{channel::{mpsc, oneshot}, future::ready, select, sink::SinkExt, stream::StreamExt};
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
-use tokio_stream::wrappers::ReceiverStream;
 use async_tungstenite::tungstenite;
 use slab::Slab;
 use crate::protocol::{Message, NumericID};
 
 #[derive(Debug)]
-struct Method {
-    name: String,
-    params: Vec<Value>,
-    result: oneshot::Sender<MethodResult>,
+enum Request {
+    Method {
+        name: String,
+        params: Vec<Value>,
+        result: oneshot::Sender<MethodResult>,
+    },
+    Subscription {
+        name: String,
+        params: Vec<Value>,
+        channel: mpsc::Sender<Value>,
+    }
 }
 
 type MethodResult = std::result::Result<Value,Value>;
@@ -20,7 +25,12 @@ type MethodResult = std::result::Result<Value,Value>;
 #[derive(Debug)]
 pub struct Connection {
     stream: mpsc::Receiver<Message>,
-    rpc: mpsc::Sender<Method>,
+    rpc: mpsc::Sender<Request>,
+}
+
+#[derive(Debug)]
+pub struct Subscription {
+    stream: mpsc::Receiver<Value>
 }
 
 // this is cursed
@@ -89,13 +99,14 @@ impl Connection {
             }
         }).fuse();
 
-        let (down_tx, down_rx) = mpsc::channel::<Message>(16);
-        let (up_tx, up_rx) = mpsc::channel::<Method>(16);
+        let (mut down_tx, down_rx) = mpsc::channel::<Message>(16);
+        let (up_tx, mut up_rx) = mpsc::channel::<Request>(16);
 
         tokio::spawn(async move {
 
             let mut pending: Slab<oneshot::Sender<MethodResult>> = Slab::new();
-            let mut up_rx = ReceiverStream::new(up_rx).fuse();
+            let mut subscribed: Slab<mpsc::Sender<Value>> = Slab::new();
+            //let mut up_rx = ReceiverStream::new(up_rx).fuse();
 
             loop {
 
@@ -123,6 +134,7 @@ impl Connection {
                                 }
 
                             },
+
                             other => {
                                 down_tx.send(other).await?;
                             }
@@ -130,11 +142,18 @@ impl Connection {
                     },
 
                     msg = up_rx.next() => {
-                        let Method { name, params, result } = msg.ok_or(anyhow!("end of method stream"))?;
-                        let id = NumericID(pending.insert(result));
-
-                        let message = Message::Method { id, method: name, params };
-                        ws_up.send(message).await?
+                        match msg.ok_or(anyhow!("end of method stream"))? {
+                            Request::Method { name, params, result } => {
+                                let id = NumericID(pending.insert(result));
+                                let message = Message::Method { id, method: name, params };
+                                ws_up.send(message).await?
+                            },
+                            Request::Subscription { name, params, channel } => {
+                                let id = NumericID(subscribed.insert(channel));
+                                let message = Message::Sub { id, name, params };
+                                ws_up.send(message).await?
+                            }
+                        }
                     }
                 }
             }
@@ -146,14 +165,27 @@ impl Connection {
     }
 
     pub async fn recv(&mut self) -> Option<Message> {
-        self.stream.recv().await
+        self.stream.next().await
     }
 
     pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<Value> {
         let (tx, rx) = oneshot::channel();
-        let request = Method { name, params, result: tx };
+        let request = Request::Method { name, params, result: tx };
         self.rpc.send(request).await?;
         rx.await?.map_err(|e| anyhow!("RPC Call returned an error: {}", e))
     }
 
+    pub async fn subscribe(&mut self, name: String, params: Vec<Value>) -> Result<Subscription> {
+        let (tx, rx) = mpsc::channel(32);
+        let request = Request::Subscription { name, params, channel: tx };
+        self.rpc.send(request).await?;
+        Ok(Subscription { stream: rx })
+    }
+
+} 
+
+impl Subscription {
+    pub fn close(&mut self) {
+        self.stream.close()
+    }   
 }
