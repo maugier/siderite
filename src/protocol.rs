@@ -24,32 +24,30 @@ impl<'de> Deserialize<'de> for NumericID {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "msg")]
 #[serde(rename_all = "camelCase")]
-pub enum Message {
+pub enum ClientMessage {
     Connect {
         version: String,
         support: Vec<String>,
         #[serde(skip_serializing_if="Option::is_none")]
         session: Option<String>,
     },
-    Connected {
-        session: String,
-    },
-    Failed {
-        version: String,
-    },
 
-    Ping,
-    Pong,
+    Ping { 
+        #[serde(skip_serializing_if="Option::is_none")]
+        id: Option<String>
+    },
+    Pong { 
+        #[serde(skip_serializing_if="Option::is_none")]
+        id: Option<String>
+    },
 
     Method { 
         id: NumericID, 
         method: String, 
         params: Vec<Value>
     },
-    Updated { 
-        methods: Vec<NumericID> 
-    },
-    Result(MethodResponse),
+
+
     Sub { 
         id: NumericID, name: String, params: Vec<Value> 
     },
@@ -60,6 +58,31 @@ pub enum Message {
         id: NumericID, 
         #[serde(skip_serializing_if="Option::is_none")]
         error: Option<Value>
+    },
+
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "msg")]
+#[serde(rename_all = "camelCase")]
+pub enum ServerMessage {
+    Connected {
+        session: String,
+    },
+    Failed {
+        version: String,
+    },
+    Ping { 
+        #[serde(skip_serializing_if="Option::is_none")]
+        id: Option<String>
+    },
+    Pong { 
+        #[serde(skip_serializing_if="Option::is_none")]
+        id: Option<String>
+    },
+    Result(MethodResponse),
+    Updated { 
+        methods: Vec<NumericID> 
     },
     Added {
         collection: String,
@@ -91,6 +114,7 @@ pub enum Message {
     MovedBefore {
         before: Option<String>,
     }
+
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,24 +146,32 @@ impl Into<Result<Value,Value>> for MethodResponse {
 #[test]
 fn test_method_format() {
 
-    fn check_message(msg: &Message) {
+    use serde::de::DeserializeOwned;
+
+    fn check_message<M>(msg: &M)
+        where M: Serialize + DeserializeOwned + PartialEq + std::fmt::Debug
+    {
         let s = serde_json::to_string(msg).unwrap();
-        let msg2: Message = serde_json::from_str(&s).unwrap();
+        let msg2: M = serde_json::from_str(&s).unwrap();
         assert_eq!(msg, &msg2);
+        
     }
 
-    check_message(&Message::Result( 
+    check_message(&ServerMessage::Result( 
         MethodResponse::Result {
             id: NumericID(123),
             result: Value::String("burp".to_string()),
         }
     ));
 
-    check_message(&Message::Result(
+    check_message(&ServerMessage::Result(
         MethodResponse::Error {
             id: NumericID(456),
             error: Value::Bool(true),
         }
     ));
+
+    check_message(&ServerMessage::Ping { id: None });
+    check_message(&ServerMessage::Ping { id: Some("pingpong".to_string()) });
 
 }

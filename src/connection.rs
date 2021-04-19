@@ -4,7 +4,7 @@ use futures::{channel::{mpsc, oneshot}, future::ready, select, sink::SinkExt, st
 use std::sync::Arc;
 use async_tungstenite::tungstenite;
 use slab::Slab;
-use crate::protocol::{Message, NumericID};
+use crate::protocol::{ClientMessage, ServerMessage, NumericID};
 
 #[derive(Debug)]
 enum Request {
@@ -24,7 +24,7 @@ type MethodResult = std::result::Result<Value,Value>;
 
 #[derive(Debug)]
 pub struct Connection {
-    stream: mpsc::Receiver<Message>,
+    stream: mpsc::Receiver<ServerMessage>,
     rpc: mpsc::Sender<Request>,
 }
 
@@ -72,13 +72,13 @@ impl Connection {
 
         let (ws_up, mut ws_down) = stream.split();
 
-        let mut ws_up = ws_up.with(|m: Message| {
+        let mut ws_up = ws_up.with(|m: ClientMessage| {
             let payload = serde_json::to_string(&m).unwrap();
             eprintln!("WS -> {}", payload);
             ready(Ok::<_,tungstenite::Error>(tungstenite::Message::Text(payload)))
         } );
 
-        let connect_msg = Message::Connect { version: "1".to_string(),
+        let connect_msg = ClientMessage::Connect { version: "1".to_string(),
                                                      support: vec!["1".to_string()],
                                                      session: None };
 
@@ -92,14 +92,14 @@ impl Connection {
             match m {
                 Ok(tungstenite::Message::Text(txt)) => {
                     eprintln!("WS <- {}", txt);
-                    serde_json::from_str::<Message>(&txt)
+                    serde_json::from_str::<ServerMessage>(&txt)
                     .map_err(Error::from)
                 },
                 other => Err(anyhow!("unhandled down message: {:?}", other))
             }
         }).fuse();
 
-        let (mut down_tx, down_rx) = mpsc::channel::<Message>(16);
+        let (mut down_tx, down_rx) = mpsc::channel::<ServerMessage>(16);
         let (up_tx, mut up_rx) = mpsc::channel::<Request>(16);
 
         tokio::spawn(async move {
@@ -117,12 +117,12 @@ impl Connection {
                         let msg = msg.ok_or(anyhow!("end of ws stream"))??;
 
                         match msg {
-                            Message::Ping => {
+                            ServerMessage::Ping { id } => {
                                 eprintln!("Sending pong");
-                                ws_up.send(Message::Pong).await?;
+                                ws_up.send(ClientMessage::Pong { id }).await?;
                             },
                     
-                            Message::Result(r) => {
+                            ServerMessage::Result(r) => {
                                 let id = r.id();
                                 if pending.contains(id) {
                                     pending.remove(id)
@@ -135,9 +135,24 @@ impl Connection {
 
                             },
 
+                            /*  
+                            Message::Added { collection, id, fields } => {
+
+                            },
+
+                            Message::Changed { collection, id, fields, cleared } => {
+
+                            },
+
+                            Message::Removed { collection, id } => {
+
+                            },
+
+                            */
                             other => {
                                 down_tx.send(other).await?;
                             }
+                            
                         }
                     },
 
@@ -145,12 +160,12 @@ impl Connection {
                         match msg.ok_or(anyhow!("end of method stream"))? {
                             Request::Method { name, params, result } => {
                                 let id = NumericID(pending.insert(result));
-                                let message = Message::Method { id, method: name, params };
+                                let message = ClientMessage::Method { id, method: name, params };
                                 ws_up.send(message).await?
                             },
                             Request::Subscription { name, params, channel } => {
                                 let id = NumericID(subscribed.insert(channel));
-                                let message = Message::Sub { id, name, params };
+                                let message = ClientMessage::Sub { id, name, params };
                                 ws_up.send(message).await?
                             }
                         }
@@ -164,7 +179,7 @@ impl Connection {
         Ok(Self { stream: down_rx, rpc: up_tx })
     }
 
-    pub async fn recv(&mut self) -> Option<Message> {
+    pub async fn recv(&mut self) -> Option<ServerMessage> {
         self.stream.next().await
     }
 
