@@ -13,11 +13,15 @@ fn random_label() -> Label {
     r
 }
 
-fn split2(s: &str) -> Option<(&str, &str)> {
+fn split2(s: &str) -> Option<(usize, &str)> {
     let mut split = s.splitn(2, ':');
     let one = split.next()?;
     let two = split.next()?;
-    if split.next().is_none() { Some((one, two)) } else { None }
+    if split.next().is_some() { 
+        return None;
+    }
+    let one = one.parse().ok()?;
+    Some((one, two))
 }
 
 impl<T> Slab<T> {
@@ -32,9 +36,18 @@ impl<T> Slab<T> {
         format!("{}:{}", idx, std::str::from_utf8(&label).unwrap())
     }
 
+    pub fn get(&self, key: &str) -> Option<&T> {
+        let (n, label) = split2(key)?;
+        let entry = self.0.get(n)?;
+        if entry.0 == label.as_bytes() {
+            Some(&entry.1)
+        } else {
+            None
+        }
+    }
+
     pub fn remove(&mut self, key: &str) -> Option<T> {
-        let (idx_s, label) = split2(key)?;
-        let n: usize = idx_s.parse().ok()?;
+        let (n, label) = split2(key)?;
 
         if &self.0.get(n)?.0 == label.as_bytes() {
             Some(self.0.remove(n).1)

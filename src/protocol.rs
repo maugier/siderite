@@ -40,11 +40,6 @@ pub enum ClientMessage {
     Unsub { 
         id: String 
     },
-    Nosub { 
-        id: String, 
-        #[serde(skip_serializing_if="Option::is_none")]
-        error: Option<Value>
-    },
 
 }
 
@@ -59,14 +54,19 @@ pub enum ServerMessage {
         version: String,
     },
     Ping { 
-        #[serde(skip_serializing_if="Option::is_none")]
+        #[serde(default, skip_serializing_if="Option::is_none")]
         id: Option<String>
     },
     Pong { 
-        #[serde(skip_serializing_if="Option::is_none")]
+        #[serde(default, skip_serializing_if="Option::is_none")]
         id: Option<String>
     },
     Result(MethodResponse),
+    Nosub { 
+        id: String, 
+        #[serde(default, skip_serializing_if="Option::is_none")]
+        error: Option<Value>
+    },
     Updated { 
         methods: Vec<String> 
     },
@@ -78,9 +78,9 @@ pub enum ServerMessage {
     Changed {
         collection: String,
         id: String,
-        #[serde(skip_serializing_if="Option::is_none")]
+        #[serde(default, skip_serializing_if="Option::is_none")]
         fields: Option<Value>,
-        #[serde(skip_serializing_if="Option::is_none")]
+        #[serde(default, skip_serializing_if="Option::is_none")]
         cleared: Option<Vec<String>>,
     },
     Removed {
@@ -93,7 +93,7 @@ pub enum ServerMessage {
     AddedBefore {
         collection: String,
         id: String,
-        #[serde(skip_serializing_if="Option::is_none")]
+        #[serde(default, skip_serializing_if="Option::is_none")]
         fields: Option<Value>,
         before: Option<String>,
     },

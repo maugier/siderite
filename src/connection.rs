@@ -6,6 +6,8 @@ use async_tungstenite::tungstenite;
 use crate::randomslab::Slab;
 use crate::protocol::{ClientMessage, ServerMessage};
 
+type MethodResult = std::result::Result<Value,Value>;
+
 #[derive(Debug)]
 enum Request {
     Method {
@@ -13,24 +15,21 @@ enum Request {
         params: Vec<Value>,
         result: oneshot::Sender<MethodResult>,
     },
-    Subscription {
+    Subscribe {
         name: String,
+        id: String,
         params: Vec<Value>,
-        channel: mpsc::Sender<Value>,
+    },
+    Unsubscribe {
+        id: String,
     }
-}
 
-type MethodResult = std::result::Result<Value,Value>;
+}
 
 #[derive(Debug)]
 pub struct Connection {
     stream: mpsc::Receiver<ServerMessage>,
     rpc: mpsc::Sender<Request>,
-}
-
-#[derive(Debug)]
-pub struct Subscription {
-    stream: mpsc::Receiver<Value>
 }
 
 // this is cursed
@@ -105,7 +104,6 @@ impl Connection {
         tokio::spawn(async move {
 
             let mut pending: Slab<oneshot::Sender<MethodResult>> = Slab::new();
-            let mut subscribed: Slab<mpsc::Sender<Value>> = Slab::new();
             //let mut up_rx = ReceiverStream::new(up_rx).fuse();
 
             loop {
@@ -134,20 +132,6 @@ impl Connection {
 
                             },
 
-                            /*  
-                            Message::Added { collection, id, fields } => {
-
-                            },
-
-                            Message::Changed { collection, id, fields, cleared } => {
-
-                            },
-
-                            Message::Removed { collection, id } => {
-
-                            },
-
-                            */
                             other => {
                                 down_tx.send(other).await?;
                             }
@@ -162,9 +146,12 @@ impl Connection {
                                 let message = ClientMessage::Method { id, method: name, params };
                                 ws_up.send(message).await?
                             },
-                            Request::Subscription { name, params, channel } => {
-                                let id = subscribed.insert(channel);
+                            Request::Subscribe { name, id, params } => {
                                 let message = ClientMessage::Sub { id, name, params };
+                                ws_up.send(message).await?
+                            },
+                            Request::Unsubscribe { id } => {
+                                let message = ClientMessage::Unsub { id };
                                 ws_up.send(message).await?
                             }
                         }
@@ -189,17 +176,16 @@ impl Connection {
         rx.await?.map_err(|e| anyhow!("RPC Call returned an error: {}", e))
     }
 
-    pub async fn subscribe(&mut self, name: String, params: Vec<Value>) -> Result<Subscription> {
-        let (tx, rx) = mpsc::channel(32);
-        let request = Request::Subscription { name, params, channel: tx };
+    pub async fn subscribe(&mut self, id: String, name: String, params: Vec<Value>) -> Result<()> {
+        let request = Request::Subscribe { name, id, params };
         self.rpc.send(request).await?;
-        Ok(Subscription { stream: rx })
+        Ok(())
+    }
+
+    pub async fn unsubscribe(&mut self, id: String) -> Result<()> {
+        let request = Request::Unsubscribe { id };
+        self.rpc.send(request).await?;
+        Ok(())
     }
 
 } 
-
-impl Subscription {
-    pub fn close(&mut self) {
-        self.stream.close()
-    }   
-}
