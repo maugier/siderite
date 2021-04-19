@@ -1,6 +1,11 @@
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct Timestamp {
+    #[serde(rename="$date")]
+    millis: u64,
+}
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "msg")]
@@ -124,8 +129,10 @@ impl Into<Result<Value,Value>> for MethodResponse {
     }
 }
 
-#[test]
-fn test_method_format() {
+#[cfg(test)]
+mod tests {
+
+    use super::*;
 
     use serde::de::DeserializeOwned;
 
@@ -138,21 +145,36 @@ fn test_method_format() {
         
     }
 
-    check_message(&ServerMessage::Result( 
-        MethodResponse::Result {
-            id: "123".to_string(),
-            result: Value::String("burp".to_string()),
-        }
-    ));
+    #[test]
+    fn test_method_result() {
+        check_message(&ServerMessage::Result( 
+            MethodResponse::Result {
+                id: "123".to_string(),
+                result: Value::String("burp".to_string()),
+            }
+        ));
+    }
 
-    check_message(&ServerMessage::Result(
-        MethodResponse::Error {
-            id: "456:kahcubwdasd".to_string(),
-            error: Value::Bool(true),
-        }
-    ));
+    #[test]
+    fn test_method_error() {
+        check_message(&ServerMessage::Result(
+            MethodResponse::Error {
+                id: "456:kahcubwdasd".to_string(),
+                error: Value::Bool(true),
+            }
+        ));
+    }
 
-    check_message(&ServerMessage::Ping { id: None });
-    check_message(&ServerMessage::Ping { id: Some("pingpong".to_string()) });
+    #[test]
+    fn test_pingpong() {
 
+        check_message(&ServerMessage::Ping { id: None });
+        check_message(&ServerMessage::Ping { id: Some("pingpong".to_string()) });
+    }
+
+    #[test]
+    fn test_timestamp() {
+        assert_eq!(serde_json::from_str::<Timestamp>("{\"$date\": 129348109238}").unwrap(), Timestamp { millis: 129348109238 });
+        check_message(&Timestamp{ millis: 129348109238 });
+    }
 }
