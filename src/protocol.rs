@@ -1,25 +1,6 @@
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
-#[derive(Debug,PartialEq,Eq)]
-pub struct NumericID(pub usize);
-
-impl Serialize for NumericID {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer {
-        serializer.serialize_str(&self.0.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for NumericID {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de> {
-        let s = <&str>::deserialize(deserializer)?;
-        Ok(NumericID(usize::from_str_radix(s, 10).map_err(serde::de::Error::custom)?))
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "msg")]
@@ -42,20 +23,20 @@ pub enum ClientMessage {
     },
 
     Method { 
-        id: NumericID, 
+        id: String, 
         method: String, 
         params: Vec<Value>
     },
 
 
     Sub { 
-        id: NumericID, name: String, params: Vec<Value> 
+        id: String, name: String, params: Vec<Value> 
     },
     Unsub { 
-        id: NumericID 
+        id: String 
     },
     Nosub { 
-        id: NumericID, 
+        id: String, 
         #[serde(skip_serializing_if="Option::is_none")]
         error: Option<Value>
     },
@@ -82,7 +63,7 @@ pub enum ServerMessage {
     },
     Result(MethodResponse),
     Updated { 
-        methods: Vec<NumericID> 
+        methods: Vec<String> 
     },
     Added {
         collection: String,
@@ -121,15 +102,15 @@ pub enum ServerMessage {
 #[serde(untagged)]
 #[serde(rename_all = "lowercase")]
 pub enum MethodResponse {
-    Result { id: NumericID, result: Value },
-    Error { id: NumericID, error: Value },
+    Result { id: String, result: Value },
+    Error { id: String, error: Value },
 }
 
 impl MethodResponse {
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> &str {
         match self {
-            MethodResponse::Result { id, .. } => id.0,
-            MethodResponse::Error { id, .. } => id.0,
+            MethodResponse::Result { id, .. } => id,
+            MethodResponse::Error { id, .. } => id,
         }
     }
 }
@@ -159,14 +140,14 @@ fn test_method_format() {
 
     check_message(&ServerMessage::Result( 
         MethodResponse::Result {
-            id: NumericID(123),
+            id: "123".to_string(),
             result: Value::String("burp".to_string()),
         }
     ));
 
     check_message(&ServerMessage::Result(
         MethodResponse::Error {
-            id: NumericID(456),
+            id: "456:kahcubwdasd".to_string(),
             error: Value::Bool(true),
         }
     ));

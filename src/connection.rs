@@ -3,8 +3,8 @@ use serde_json::{self, Value};
 use futures::{channel::{mpsc, oneshot}, future::ready, select, sink::SinkExt, stream::StreamExt};
 use std::sync::Arc;
 use async_tungstenite::tungstenite;
-use slab::Slab;
-use crate::protocol::{ClientMessage, ServerMessage, NumericID};
+use crate::randomslab::Slab;
+use crate::protocol::{ClientMessage, ServerMessage};
 
 #[derive(Debug)]
 enum Request {
@@ -124,9 +124,8 @@ impl Connection {
                     
                             ServerMessage::Result(r) => {
                                 let id = r.id();
-                                if pending.contains(id) {
-                                    pending.remove(id)
-                                        .send(r.into())
+                                if let Some(chan) = pending.remove(id) {
+                                    chan.send(r.into())
                                         .map_err(|e| anyhow!("Could not deliver reply {:?}", e))?
 
                                 } else {
@@ -159,12 +158,12 @@ impl Connection {
                     msg = up_rx.next() => {
                         match msg.ok_or(anyhow!("end of method stream"))? {
                             Request::Method { name, params, result } => {
-                                let id = NumericID(pending.insert(result));
+                                let id = pending.insert(result);
                                 let message = ClientMessage::Method { id, method: name, params };
                                 ws_up.send(message).await?
                             },
                             Request::Subscription { name, params, channel } => {
-                                let id = NumericID(subscribed.insert(channel));
+                                let id = subscribed.insert(channel);
                                 let message = ClientMessage::Sub { id, name, params };
                                 ws_up.send(message).await?
                             }
