@@ -1,6 +1,6 @@
 use anyhow::{Error, Result, anyhow};
 use serde_json::{self, Value};
-use futures::{channel::{mpsc, oneshot}, future::ready, select, sink::SinkExt, stream::StreamExt};
+use futures::{Stream, channel::{mpsc, oneshot}, future::ready, select, sink::SinkExt, stream::StreamExt};
 use std::sync::Arc;
 use async_tungstenite::tungstenite;
 use crate::randomslab::Slab;
@@ -115,7 +115,6 @@ impl Connection {
 
                 select! {
                     msg = ws_down.next() => {
-                        eprintln!("Received message {:?}", msg);
 
                         let msg = msg.ok_or(anyhow!("end of ws stream"))??;
 
@@ -168,6 +167,10 @@ impl Connection {
 
 
         Ok(Self { stream: down_rx, handle: Handle { rpc: up_tx } })
+    }
+
+    pub fn stream(&mut self) -> &mut impl Stream<Item = ServerMessage> {
+        &mut self.stream
     }
 
     pub async fn recv(&mut self) -> Option<ServerMessage> {

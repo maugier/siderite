@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Timestamp {
     #[serde(rename="$date")]
     millis: u64,
