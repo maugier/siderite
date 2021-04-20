@@ -29,6 +29,11 @@ enum Request {
 #[derive(Debug)]
 pub struct Connection {
     stream: mpsc::Receiver<ServerMessage>,
+    handle: Handle,
+}
+
+#[derive(Clone, Debug)]
+pub struct Handle {
     rpc: mpsc::Sender<Request>,
 }
 
@@ -162,12 +167,32 @@ impl Connection {
         });
 
 
-        Ok(Self { stream: down_rx, rpc: up_tx })
+        Ok(Self { stream: down_rx, handle: Handle { rpc: up_tx } })
     }
 
     pub async fn recv(&mut self) -> Option<ServerMessage> {
         self.stream.next().await
     }
+
+    pub fn handle(&self) -> Handle {
+        self.handle.clone()
+    }
+
+    pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<Value> {
+        self.handle.call(name, params).await
+    }
+
+    pub async fn subscribe(&mut self, id: String, name: String, params: Vec<Value>) -> Result<()> {
+        self.handle.subscribe(id, name, params).await
+    }
+
+    pub async fn unsubscribe(&mut self, id: String) -> Result<()> {
+        self.handle.unsubscribe(id).await
+    }
+
+}
+
+impl Handle {
 
     pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<Value> {
         let (tx, rx) = oneshot::channel();
