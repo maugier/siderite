@@ -62,10 +62,10 @@ impl Connection {
 
         let tls = tokio_rustls::TlsConnector::from(tlsconfig);
 
-        let (stream, response) =
+        let (stream, _response) =
             async_tungstenite::tokio::connect_async_with_tls_connector(url, Some(tls)).await?;
 
-        eprintln!("Got response from websocket: {:?}", response);
+        //eprintln!("Got response from websocket: {:?}", response);
 
 
         Self::connect_with_websocket(stream).await
@@ -78,7 +78,7 @@ impl Connection {
 
         let mut ws_up = ws_up.with(|m: ClientMessage| {
             let payload = serde_json::to_string(&m).unwrap();
-            eprintln!("WS -> {}", payload);
+            //eprintln!("WS -> {}", payload);
             ready(Ok::<_,tungstenite::Error>(tungstenite::Message::Text(payload)))
         } );
 
@@ -95,7 +95,7 @@ impl Connection {
         let mut ws_down = ws_down.map(|m| {
             match m {
                 Ok(tungstenite::Message::Text(txt)) => {
-                    eprintln!("WS <- {}", txt);
+                    //eprintln!("WS <- {}", txt);
                     serde_json::from_str::<ServerMessage>(&txt)
                     .map_err(Error::from)
                 },
@@ -120,7 +120,7 @@ impl Connection {
 
                         match msg {
                             ServerMessage::Ping { id } => {
-                                eprintln!("Sending pong");
+                                //eprintln!("Sending pong");
                                 ws_up.send(ClientMessage::Pong { id }).await?;
                             },
                     
