@@ -1,6 +1,8 @@
 use serde::{Serialize, Deserialize};
 use serde_json::{self, Value};
 
+use crate::connection::{MethodResult, RPCError};
+
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Timestamp {
     #[serde(rename="$date")]
@@ -130,14 +132,7 @@ impl MethodResponse {
     }
 }
 
-impl Into<Result<Value,Value>> for MethodResponse {
-    fn into(self) -> Result<Value,Value> {
-        match self {
-            MethodResponse::Result { result, .. } => Ok(result),
-            MethodResponse::Error { error, .. } => Err(error),
-        }
-    }
-}
+
 
 #[cfg(test)]
 mod tests {

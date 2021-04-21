@@ -4,9 +4,29 @@ use futures::{Stream, channel::{mpsc, oneshot}, future::ready, select, sink::Sin
 use std::sync::Arc;
 use async_tungstenite::tungstenite;
 use crate::randomslab::Slab;
-use crate::protocol::{ClientMessage, ServerMessage};
+use crate::protocol::{ClientMessage, ServerMessage, MethodResponse};
 
-type MethodResult = std::result::Result<Value,Value>;
+#[derive(Debug, PartialEq, Eq)]
+pub struct RPCError(Value);
+
+impl std::fmt::Display for RPCError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RPC Error: {}", self.0)
+    }
+}
+
+impl std::error::Error for RPCError {}
+
+pub type MethodResult = std::result::Result<Value,RPCError>;
+
+impl Into<MethodResult> for MethodResponse {
+    fn into(self) -> MethodResult {
+        match self {
+            MethodResponse::Result { result, .. } => Ok(result),
+            MethodResponse::Error { error, .. } => Err(RPCError(error)),
+        }
+    }
+}
 
 #[derive(Debug)]
 enum Request {
@@ -181,7 +201,7 @@ impl Connection {
         self.handle.clone()
     }
 
-    pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<Value> {
+    pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<MethodResult> {
         self.handle.call(name, params).await
     }
 
@@ -197,11 +217,11 @@ impl Connection {
 
 impl Handle {
 
-    pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<Value> {
+    pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<MethodResult> {
         let (tx, rx) = oneshot::channel();
         let request = Request::Method { name, params, result: tx };
         self.rpc.send(request).await?;
-        rx.await?.map_err(|e| anyhow!("RPC Call returned an error: {}", e))
+        Ok(rx.await?)
     }
 
     pub async fn subscribe(&mut self, id: String, name: String, params: Vec<Value>) -> Result<()> {
