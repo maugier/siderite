@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use serde_json::Value;
+use serde_json::{self, Value};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Timestamp {
@@ -99,6 +99,16 @@ pub enum ServerMessage {
     },
     MovedBefore {
         before: Option<String>,
+    }
+
+}
+
+impl ServerMessage {
+
+    pub fn pretty(&self) -> String {
+        serde_json::to_value(&self)
+            .and_then(|v| serde_json::to_string_pretty(&v))
+            .unwrap_or_else(|_| "<<serialization error>>".to_string())
     }
 
 }
