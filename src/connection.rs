@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_tungstenite::tungstenite;
 use crate::randomslab::Slab;
 use crate::protocol::{ClientMessage, ServerMessage, MethodResponse};
+use log::{debug, trace, error};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RPCError(Value);
@@ -82,10 +83,10 @@ impl Connection {
 
         let tls = tokio_rustls::TlsConnector::from(tlsconfig);
 
-        let (stream, _response) =
+        let (stream, response) =
             async_tungstenite::tokio::connect_async_with_tls_connector(url, Some(tls)).await?;
 
-        //eprintln!("Got response from websocket: {:?}", response);
+        debug!(target: "websocket", "Got HTTP response: {:?}", response);
 
 
         Self::connect_with_websocket(stream).await
@@ -98,7 +99,7 @@ impl Connection {
 
         let mut ws_up = ws_up.with(|m: ClientMessage| {
             let payload = serde_json::to_string(&m).unwrap();
-            //eprintln!("WS -> {}", payload);
+            trace!("=> {}", payload);
             ready(Ok::<_,tungstenite::Error>(tungstenite::Message::Text(payload)))
         } );
 
@@ -115,7 +116,7 @@ impl Connection {
         let mut ws_down = ws_down.map(|m| {
             match m {
                 Ok(tungstenite::Message::Text(txt)) => {
-                    //eprintln!("WS <- {}", txt);
+                    trace!("<= {}", txt);
                     serde_json::from_str::<ServerMessage>(&txt)
                     .map_err(Error::from)
                 },
@@ -126,7 +127,7 @@ impl Connection {
         let (mut down_tx, down_rx) = mpsc::channel::<ServerMessage>(16);
         let (up_tx, mut up_rx) = mpsc::channel::<Request>(16);
 
-        tokio::spawn(async move {
+        let actor = tokio::spawn(async move {
 
             let mut pending: Slab<oneshot::Sender<MethodResult>> = Slab::new();
             //let mut up_rx = ReceiverStream::new(up_rx).fuse();
@@ -140,7 +141,7 @@ impl Connection {
 
                         match msg {
                             ServerMessage::Ping { id } => {
-                                //eprintln!("Sending pong");
+                                debug!("Answering ping request");
                                 ws_up.send(ClientMessage::Pong { id }).await?;
                             },
                     
@@ -183,6 +184,10 @@ impl Connection {
 
         });
 
+        tokio::spawn(async move {
+            let res = actor.await;
+            error!("Siderite worker has terminated: {:?}", res);
+        });
 
         Ok(Self { stream: down_rx, handle: Handle { rpc: up_tx } })
     }
