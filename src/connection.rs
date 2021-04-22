@@ -22,8 +22,8 @@ pub type MethodResult = std::result::Result<Value,RPCError>;
 impl Into<MethodResult> for MethodResponse {
     fn into(self) -> MethodResult {
         match self {
-            MethodResponse::Result { result, .. } => Ok(result),
-            MethodResponse::Error { error, .. } => Err(RPCError(error)),
+            MethodResponse { error: Some(error), .. } => Err(RPCError(error)),
+            MethodResponse { result,.. } => Ok(result.unwrap_or(Value::Null)),
         }
     }
 }
@@ -145,11 +145,9 @@ impl Connection {
                             },
                     
                             ServerMessage::Result(r) => {
-                                let id = r.id();
-                                if let Some(chan) = pending.remove(id) {
-                                    chan.send(r.into())
-                                        .map_err(|e| anyhow!("Could not deliver reply {:?}", e))?
-
+                                if let Some(chan) = pending.remove(&r.id) {
+                                    // Our caller dropped, what're we gonna do?
+                                    let _ = chan.send(r.into());
                                 } else {
                                     return Err::<(),Error>(anyhow!("Unknown call response ID"))
                                 }

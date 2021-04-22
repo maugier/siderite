@@ -1,12 +1,11 @@
 use serde::{Serialize, Deserialize};
 use serde_json::{self, Value};
 
-use crate::connection::{MethodResult, RPCError};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Timestamp {
     #[serde(rename="$date")]
-    millis: u64,
+    millis: Option<u64>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,20 +115,12 @@ impl ServerMessage {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "lowercase")]
-pub enum MethodResponse {
-    Result { id: String, result: Value },
-    Error { id: String, error: Value },
-}
-
-impl MethodResponse {
-    pub fn id(&self) -> &str {
-        match self {
-            MethodResponse::Result { id, .. } => id,
-            MethodResponse::Error { id, .. } => id,
-        }
-    }
+pub struct MethodResponse {
+    pub id: String,
+    #[serde(default, skip_serializing_if="Option::is_none")]
+    pub result: Option<Value>,
+    #[serde(default, skip_serializing_if="Option::is_none")]
+    pub error: Option<Value>,
 }
 
 
@@ -141,45 +132,48 @@ mod tests {
 
     use serde::de::DeserializeOwned;
 
-    fn check_message<M>(msg: &M)
+    fn check_message<M>(msg: &M, string: &str)
         where M: Serialize + DeserializeOwned + PartialEq + std::fmt::Debug
     {
-        let s = serde_json::to_string(msg).unwrap();
-        let msg2: M = serde_json::from_str(&s).unwrap();
-        assert_eq!(msg, &msg2);
+        let serialized = serde_json::to_string(msg).unwrap();
+        assert_eq!(serialized, string);
+        let deserialized: M = serde_json::from_str(&string).unwrap();
+        assert_eq!(msg, &deserialized);
         
     }
 
     #[test]
     fn test_method_result() {
         check_message(&ServerMessage::Result( 
-            MethodResponse::Result {
+            MethodResponse {
                 id: "123".to_string(),
-                result: Value::String("burp".to_string()),
+                result: Some(Value::String("burp".to_string())),
+                error: None
             }
-        ));
+        ), r#"{"msg":"result","id":"123","result":"burp"}"#);
     }
 
     #[test]
     fn test_method_error() {
         check_message(&ServerMessage::Result(
-            MethodResponse::Error {
+            MethodResponse {
                 id: "456:kahcubwdasd".to_string(),
-                error: Value::Bool(true),
+                error: Some(Value::Bool(true)),
+                result: None,
             }
-        ));
+
+        ), r#"{"msg":"result","id":"456:kahcubwdasd","error":true}"#);
     }
 
     #[test]
     fn test_pingpong() {
 
-        check_message(&ServerMessage::Ping { id: None });
-        check_message(&ServerMessage::Ping { id: Some("pingpong".to_string()) });
+        check_message(&ServerMessage::Ping { id: None }, r#"{"msg":"ping"}"#);
+        check_message(&ServerMessage::Ping { id: Some("pingpong".to_string()) }, r#"{"msg":"ping","id":"pingpong"}"#);
     }
 
     #[test]
     fn test_timestamp() {
-        assert_eq!(serde_json::from_str::<Timestamp>("{\"$date\": 129348109238}").unwrap(), Timestamp { millis: 129348109238 });
-        check_message(&Timestamp{ millis: 129348109238 });
+        check_message(&Timestamp{ millis: Some(129348109238) }, r#"{"$date":129348109238}"#);
     }
 }
