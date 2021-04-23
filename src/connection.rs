@@ -7,8 +7,10 @@ use crate::randomslab::Slab;
 use crate::protocol::{ClientMessage, ServerMessage, MethodResponse};
 use log::{debug, trace, error};
 
+/// RPC method calls may fail with a JSON error. If it is the case, 
+/// we wrap them in this.
 #[derive(Debug, PartialEq, Eq)]
-pub struct RPCError(Value);
+pub struct RPCError(pub Value);
 
 impl std::fmt::Display for RPCError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -18,6 +20,9 @@ impl std::fmt::Display for RPCError {
 
 impl std::error::Error for RPCError {}
 
+
+/// DDP RPC calls return either a value or an error. Both can
+/// be arbitrary JSON values.
 pub type MethodResult = std::result::Result<Value,RPCError>;
 
 impl Into<MethodResult> for MethodResponse {
@@ -47,6 +52,7 @@ enum Request {
 
 }
 
+/// A handle to an active DDP connection. 
 #[derive(Debug)]
 pub struct Connection {
     stream: mpsc::Receiver<ServerMessage>,
@@ -72,6 +78,8 @@ type WSStream = async_tungstenite::WebSocketStream<
 
 impl Connection {
 
+    /// Create a new connection to the given websocket endpoint.
+    /// the url parameter is passed as-is to [`async_tungstenite::tokio`]
     pub async fn connect(url: &str) -> Result<Self> {
 
         let tlsconfig = {
@@ -92,6 +100,7 @@ impl Connection {
         Self::connect_with_websocket(stream).await
     }
 
+    /// Create a new connection from an existing tungstenite websocket stream.
     pub async fn connect_with_websocket(stream: WSStream) -> Result<Self> {
         
 
@@ -192,26 +201,34 @@ impl Connection {
         Ok(Self { stream: down_rx, handle: Handle { rpc: up_tx } })
     }
 
+    /// Access the inbound stream of messages. Pings are automatically answered,
+    /// all subscription-related messages will be passed down indiscriminatedly.
     pub fn stream(&mut self) -> &mut impl Stream<Item = ServerMessage> {
         &mut self.stream
     }
 
+    /// Convenience method to consume a single message from the inbound stream.
     pub async fn recv(&mut self) -> Option<ServerMessage> {
         self.stream.next().await
     }
 
+    /// Acquire a handle that can be used to make RPC calls without borrowing
+    /// the main connection.
     pub fn handle(&self) -> Handle {
         self.handle.clone()
     }
 
+    /// See [`Handle::call`]
     pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<MethodResult> {
         self.handle.call(name, params).await
     }
 
+    /// Subscribe to a collection. You need to provide a unique subscription ID.
     pub async fn subscribe(&mut self, id: String, name: String, params: Vec<Value>) -> Result<()> {
         self.handle.subscribe(id, name, params).await
     }
 
+    /// Unsubscribe from a previously subscribed connection.
     pub async fn unsubscribe(&mut self, id: String) -> Result<()> {
         self.handle.unsubscribe(id).await
     }
@@ -220,6 +237,7 @@ impl Connection {
 
 impl Handle {
 
+    /// Perform a DDP RPC Call. 
     pub async fn call(&mut self, name: String, params: Vec<Value>) -> Result<MethodResult> {
         let (tx, rx) = oneshot::channel();
         let request = Request::Method { name, params, result: tx };

@@ -36,6 +36,7 @@ impl<T> Slab<T> {
         format!("{}:{}", idx, std::str::from_utf8(&label).unwrap())
     }
 
+    /*
     pub fn get(&self, key: &str) -> Option<&T> {
         let (n, label) = split2(key)?;
         let entry = self.0.get(n)?;
@@ -45,6 +46,7 @@ impl<T> Slab<T> {
             None
         }
     }
+    */
 
     pub fn remove(&mut self, key: &str) -> Option<T> {
         let (n, label) = split2(key)?;

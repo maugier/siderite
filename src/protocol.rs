@@ -1,17 +1,21 @@
+//! This module contains the `serde` datastructures for DDP
+
 use serde::{Serialize, Deserialize};
 use serde_json::{self, Value};
 
-
+/// A date represented by the JSON object `{ "$date": ts }`, with `ts` in millisecs since the epoch.
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Timestamp {
     #[serde(rename="$date")]
     millis: Option<u64>,
 }
 
+/// DDP messages from client to server
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "msg")]
 #[serde(rename_all = "camelCase")]
 pub enum ClientMessage {
+    /// Connection request. This must be the first message sent, and is used for version negotiation.
     Connect {
         version: String,
         support: Vec<String>,
@@ -28,6 +32,7 @@ pub enum ClientMessage {
         id: Option<String>
     },
 
+    /// Method calls
     Method { 
         id: String, 
         method: String, 
@@ -44,6 +49,7 @@ pub enum ClientMessage {
 
 }
 
+/// DDP messages from server to client
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "msg")]
 #[serde(rename_all = "camelCase")]
@@ -62,15 +68,22 @@ pub enum ServerMessage {
         #[serde(default, skip_serializing_if="Option::is_none")]
         id: Option<String>
     },
+
+    /// The result of a method call
     Result(MethodResponse),
+
+    /// Sent after unsubscribing, or to signal a subscription failure.
     Nosub { 
         id: String, 
         #[serde(default, skip_serializing_if="Option::is_none")]
         error: Option<Value>
     },
+
+    /// Signals progress on one or several method calls.
     Updated { 
         methods: Vec<String> 
     },
+    
     Added {
         collection: String,
         id: String,
