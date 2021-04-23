@@ -4,10 +4,20 @@ use serde::{Serialize, Deserialize};
 use serde_json::{self, Value};
 
 /// A date represented by the JSON object `{ "$date": ts }`, with `ts` in millisecs since the epoch.
+/// This type is not [`Ord`] because the timestamp can be null
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Timestamp {
     #[serde(rename="$date")]
     millis: Option<u64>,
+}
+
+impl PartialOrd for Timestamp {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self.millis, other.millis) {
+            (Some(a), Some(b)) => { a.partial_cmp(&b) }
+            _ => None,
+        }
+    }
 }
 
 /// DDP messages from client to server
