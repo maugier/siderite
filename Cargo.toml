@@ -1,6 +1,6 @@
 [package]
 name = "siderite"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Maxime Augier <max@xolus.net>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -18,7 +18,7 @@ async-tungstenite = { version = "0.13", features = ["tokio-runtime", "tokio-rust
 fastrand = "1.4"
 futures = "0.3"
 log = "0.4"
-tokio = { version = "1.4", features = ["full"]}
+tokio = { version = "1.4", features = ["rt","net","sync"]}
 tokio-rustls = "0.22"
 rustls-native-certs = "0.5"
 serde = { version = "1.0", features = ["derive"] }
