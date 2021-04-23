@@ -28,6 +28,8 @@ pub mod protocol;
 
 /// This offers an async interface for connecting to a DDP endpoint and exchange messages.
 pub mod connection;
-pub mod randomslab;
 
-pub use connection::Connection;
+mod randomslab;
+
+pub use connection::{Connection, Handle};
+pub use protocol::{ClientMessage, ServerMessage, Timestamp};
