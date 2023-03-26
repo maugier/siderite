@@ -13,16 +13,16 @@ keywords = ["meteor", "ddp"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
-async-tungstenite = { version = "0.13", features = ["tokio-runtime", "tokio-rustls"]}
-fastrand = "1.4"
-futures = "0.3"
-log = "0.4"
-tokio = { version = "1.4", features = ["rt","net","sync"]}
-tokio-rustls = "0.22"
-rustls-native-certs = "0.5"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-slab = "0.4"
+anyhow = "1.0.40"
+async-tungstenite = { version = "0.13.1", features = ["tokio-runtime", "tokio-rustls"] }
+fastrand = "1.4.1"
+futures = "0.3.15"
+log = "0.4.14"
+tokio = { version = "1.6.1", features = ["rt","net","sync"] }
+tokio-rustls = "0.22.0"
+rustls-native-certs = "0.5.0"
+serde = { version = "1.0.126", features = ["derive"] }
+serde_json = "1.0.64"
+slab = "0.4.3"
 
 
